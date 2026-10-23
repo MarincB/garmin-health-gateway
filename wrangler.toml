@@ -1,0 +1,16 @@
+name = "garmin-health-gateway"
+main = "src/index.ts"
+compatibility_date = "2026-10-01"
+compatibility_flags = ["nodejs_compat"]
+
+[vars]
+TIMEZONE = "Europe/Ljubljana"
+# Upper HR bound of zones 1-4 (zone 5 is everything above). Leave empty to skip zone times.
+HR_ZONES = ""
+# "true" parses FIT files for splits, decoupling and zone times. Needs Workers Paid ($5/month):
+# parsing a 50-minute run takes ~70 ms CPU, the free plan allows 10 ms.
+ENABLE_FIT_ANALYSIS = "false"
+
+# Secrets: set with `npx wrangler secret put <NAME>`, never commit them.
+#   GARMIN_API_KEY   your Garmin Personal API key
+#   GATEWAY_SECRET   long random string (openssl rand -hex 24); part of every private URL

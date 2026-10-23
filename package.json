@@ -1,0 +1,24 @@
+{
+  "name": "garmin-health-gateway",
+  "version": "0.1.0",
+  "description": "Self-hosted health gateway for your Garmin: MCP for Claude/ChatGPT, REST API, Telegram and iMessage chat, morning recovery report.",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "typecheck": "tsc -p .",
+    "test": "bash test/e2e.sh"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "@garmin/fitsdk": "^21.218.0",
+    "@modelcontextprotocol/sdk": "^1.32.1",
+    "fflate": "^0.8.3",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^5.20261023.1",
+    "typescript": "^7.0.2",
+    "wrangler": "^4.152.0"
+  },
+  "type": "module"
+}
