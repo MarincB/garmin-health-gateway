@@ -38,7 +38,7 @@ Tests must pass before committing. Extend `test/mock-garmin.mjs` when adding end
 
 ## Status
 
-- Done: core connector + REST, 17 tools, goal coach (`src/coach.ts`, `prompts.ts`, `library.ts`, KV `STATE`), e2e suite (48 checks)
+- Done: core connector + REST, 19 tools, goal coach (`src/coach.ts`, `prompts.ts`, `library.ts`, KV `STATE`), `garmin_today` dashboard widget (`src/dashboard.ts`, `src/widgets/today.html`, MCP Apps, neumorphic, light/dark, on-load motion, saved snapshot when Garmin 526s), e2e suite (57 checks)
 - Next: deploy with the KV namespace and try the `plan_goal` prompt in Claude; verify `athlete_baseline` against real Garmin responses
 - Then: Recovery dashboard and morning report as a Claude scheduled task (free in Claude plan);
   Telegram bot with user's own Anthropic API key; iMessage relay for an always-on Mac

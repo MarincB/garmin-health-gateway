@@ -51,10 +51,12 @@ for (let w = 0; w < 6; w++) for (let r = 0; r < 4; r++) {
 
 let calls = [];
 let dataFailures = 1; // first data request also answers 526
+let failAll = false; // /__fail?on=1 makes every data request answer 526 (Garmin outage)
 let tokenFailures = 1; // first token exchange answers 526 like the real host sometimes does
 http.createServer((req, res) => {
   const u = new URL(req.url, "http://x");
   calls.push(`${req.method} ${u.pathname}`);
+  if (u.pathname === "/__fail") { failAll = u.searchParams.get("on") === "1"; res.end("ok"); return; }
   if (u.pathname === "/__calls") { res.end(JSON.stringify(calls)); return; }
   if (req.method === "POST" && u.pathname.endsWith("/personal-api-key/token")) {
     if (req.headers.authorization !== "ApiKey test-key") { res.writeHead(401).end("bad key"); return; }
@@ -62,7 +64,7 @@ http.createServer((req, res) => {
     res.end(fakeJwt); return;
   }
   if (req.headers.authorization !== `Bearer ${fakeJwt}`) { res.writeHead(401).end("no token"); return; }
-  if (dataFailures-- > 0) { res.writeHead(526).end("flaky"); return; }
+  if (failAll || dataFailures-- > 0) { res.writeHead(526).end("flaky"); return; }
   if (u.pathname.startsWith("/download-service/files/activity/")) {
     res.writeHead(200, { "content-type": "application/zip" }).end(Buffer.from(zip)); return;
   }
@@ -75,6 +77,10 @@ http.createServer((req, res) => {
   }
   if (u.pathname === "/sleep-service/sleep/dailySleep") {
     res.end(JSON.stringify({ dailySleepDTO: { sleepScores: { overall: { value: 78 } }, deepSleepSeconds: 5400 } })); return;
+  }
+  if (u.pathname === "/usersummary-service/v2/dailysummaries") {
+    const day = new Date().toISOString().slice(0, 10);
+    res.end(JSON.stringify({ data: [{ calendarDate: day, heartRate: { restingValue: 41, minValue: 38, maxValue: 90 }, bodyBattery: { latestValue: 77, minValue: 30, maxValue: 90 }, stress: { avgLevel: 22, maxLevel: 60 } }] })); return;
   }
   res.end(JSON.stringify({ path: u.pathname, ok: true }));
 }).listen(8799, () => console.log("mock garmin on 8799"));

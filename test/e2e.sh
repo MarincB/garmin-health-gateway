@@ -117,6 +117,12 @@ check "widget resource carries the page" 'ui/initialize' "$R"
 R=$(tool garmin_today '{}')
 check "garmin_today returns structuredContent" 'structuredContent' "$R"
 check "garmin_today says what Garmin does not expose" 'Training Readiness' "$R"
+check "garmin_today has Body Battery from summaries" 'latest\":77' "$R"
+curl -s "http://127.0.0.1:8799/__fail?on=1" >/dev/null
+R=$(tool garmin_today '{}')
+check "garmin_today serves the saved snapshot during a Garmin outage" 'stale' "$R"
+check "stale snapshot still has the data" 'latest\":77' "$R"
+curl -s "http://127.0.0.1:8799/__fail?on=0" >/dev/null
 echo "MCP prompts"
 check "prompts/list" 'plan_goal' "$(rpc '{"jsonrpc":"2.0","id":4,"method":"prompts/list"}')"
 check "prompts/get plan_goal" 'athlete_baseline' "$(rpc '{"jsonrpc":"2.0","id":5,"method":"prompts/get","params":{"name":"plan_goal","arguments":{"goal":"half marathon"}}}')"

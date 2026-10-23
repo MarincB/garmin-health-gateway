@@ -28,7 +28,7 @@ export async function garminToday(ctx: Ctx, a: { date?: string } = {}) {
   const fa: any = fitness ?? {};
   const comp = fa.components ?? {};
 
-  return trim({
+  const snap = trim({
     date,
     sleep: s.sleepTimeSeconds && {
       score: scores.overall?.value, qualifier: scores.overall?.qualifierKey,
@@ -66,4 +66,18 @@ export async function garminToday(ctx: Ctx, a: { date?: string } = {}) {
     not_available: "Training Readiness, Training Status and Endurance Score are not exposed by Garmin's Personal API.",
     warnings: warnings.length ? warnings : undefined,
   });
+
+  // Garmin sits behind Cloudflare and answers 526 from Workers for hours at a time. Keep the last good
+  // snapshot (3 days, own KV) and show it, labelled, instead of an empty dashboard.
+  const store = ctx.env.STATE;
+  const fresh = !!(today.bodyBattery || s.sleepTimeSeconds || hs.status);
+  if (!store) return snap;
+  const saved = await store.get<{ saved_at: string; data: Record<string, unknown> }>("garmin:today", "json").catch(() => null);
+  if (fresh) {
+    if (!saved || Date.now() - Date.parse(saved.saved_at) > 10 * 60_000) {
+      await store.put("garmin:today", JSON.stringify({ saved_at: new Date().toISOString(), data: { ...snap, warnings: undefined } }), { expirationTtl: 3 * 86400 }).catch(() => {});
+    }
+    return snap;
+  }
+  return saved?.data ? { ...saved.data, stale: { saved_at: saved.saved_at }, warnings: snap.warnings } : snap;
 }
