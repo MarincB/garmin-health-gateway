@@ -203,7 +203,7 @@ export const TOOLS: Tool[] = [
   {
     name: "garmin_today",
     description: "Today at a glance in Garmin's own terms: Sleep Score, Body Battery, Stress, HRV Status, Resting Heart Rate, SpO2, Respiration, Steps, Fitness Age, 7-day trend and today's planned session. Shows as a dashboard widget in clients that support it.",
-    shape: { date: DATE.optional() },
+    shape: { date: DATE.optional(), refresh: z.boolean().optional().describe("Skip the saved snapshot and fetch from Garmin now") },
     ui: "ui://garmin/today",
     run: garminToday,
   },

@@ -5,7 +5,7 @@ compatibility_flags = ["nodejs_compat"]
 
 # Background refresh of the dashboard snapshot (see src/index.ts scheduled).
 [triggers]
-crons = ["*/15 * * * *"]
+crons = ["*/10 * * * *"]
 
 [vars]
 TIMEZONE = "Europe/Ljubljana"

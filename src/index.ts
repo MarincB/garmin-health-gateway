@@ -45,6 +45,6 @@ export default {
   // from Workers, so views read a snapshot that is at most one interval old instead of a live fetch.
   async scheduled(_controller: ScheduledController, env: Env): Promise<void> {
     if (!env.STATE || !env.GARMIN_API_KEY) return;
-    await garminToday(makeCtx(env)).catch(() => {});
+    await garminToday(makeCtx(env), { refresh: true }).catch(() => {});
   },
 } satisfies ExportedHandler<Env>;

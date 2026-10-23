@@ -8,8 +8,24 @@ import { addDays, localDate, localTime, r1, trim } from "./util";
 const SECTIONS = ["sleep", "body_battery", "stress", "hrv_status", "resting_heart_rate", "spo2", "respiration", "steps", "fitness_age", "trend_7d"] as const;
 const avg = (xs: number[]) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : undefined);
 
-export async function garminToday(ctx: Ctx, a: { date?: string } = {}) {
+// Minutes since the watch last synced, in the user's wall-clock time (Garmin sends local timestamps).
+function syncAge(ctx: Ctx, syncedUntil: string | undefined, date: string): number | undefined {
+  if (!syncedUntil || date !== localDate(ctx.tz)) return undefined;
+  const nowWall = Date.parse(`${localDate(ctx.tz)}T${localTime(ctx.tz)}:00Z`);
+  return Math.max(0, Math.round((nowWall - Date.parse(syncedUntil.slice(0, 19) + "Z")) / 60000));
+}
+
+// A snapshot younger than this is served without calling Garmin (the background refresh runs every 10 min).
+const SNAPSHOT_FRESH_MS = 12 * 60_000;
+
+export async function garminToday(ctx: Ctx, a: { date?: string; refresh?: boolean } = {}) {
   const date = a.date ?? localDate(ctx.tz);
+  if (!a.refresh && ctx.env.STATE) {
+    const hit = await ctx.env.STATE.get<{ saved_at: string; data: Record<string, any> }>("garmin:today", "json").catch(() => null);
+    if (hit?.data?.date === date && Date.now() - Date.parse(hit.saved_at) < SNAPSHOT_FRESH_MS) {
+      return { ...hit.data, synced_age_min: syncAge(ctx, hit.data.synced_until, date), from_snapshot: { saved_at: hit.saved_at } };
+    }
+  }
   const warnings: string[] = [];
   const soft = <T,>(label: string, p: Promise<T>) => p.catch((e: Error) => { warnings.push(`${label}: ${e.message}`); return null as T | null; });
   const [sleep, hrv, sums, fitness, planned] = await Promise.all([
@@ -49,9 +65,7 @@ export async function garminToday(ctx: Ctx, a: { date?: string } = {}) {
 
   // How current the numbers are: Garmin's daily summary only covers up to the watch's last sync.
   const syncedUntil: string | undefined = today.wellnessChronology?.endTimestampLocal;
-  const nowWall = Date.parse(`${localDate(ctx.tz)}T${localTime(ctx.tz)}:00Z`);
-  const syncedAgeMin = syncedUntil && date === localDate(ctx.tz)
-    ? Math.max(0, Math.round((nowWall - Date.parse(syncedUntil.slice(0, 19) + "Z")) / 60000)) : undefined;
+  const syncedAgeMin = syncAge(ctx, syncedUntil, date);
 
   const snap = trim({
     date,
