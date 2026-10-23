@@ -7,24 +7,26 @@
 <style>
   :root {
     color-scheme: light dark;
-    --page: light-dark(#ecf0f3, #232832);
+    --page: light-dark(#ecf0f3, #272c37);
     --card: var(--page);
-    --card-hi: light-dark(#eef2f5, #272c37);
-    --card-lo: light-dark(#eaeef1, #1f242d);
+    --card-hi: light-dark(#eef2f5, #2a303b);
+    --card-lo: light-dark(#eaeef1, #252a35);
     --card-bg: linear-gradient(145deg, var(--card-hi), var(--card-lo));
     --card-2: light-dark(#ffffff, #2f3039);
     --text: light-dark(#17181c, #f4f4f6);
     --sub: light-dark(#6b6d78, #98a0b3);
     --line: light-dark(#e1e0ea, #343b49);
-    --track: light-dark(#e1e7ee, #1a1e26);
+    --track: light-dark(#e1e7ee, #21262f);
     /* Neumorphism with layered, realistic shadows. One light source top-left. Every shadow is a pair
        (soft ambient + tight contact) and blur is about twice the offset. Dark mode: near-black shadow,
        highlight only a shade lighter than the surface. Light mode: white highlight, violet-grey shadow. */
-    --sh-d:  light-dark(rgba(209,217,230,.78), rgba(12,15,21,.72));
-    --sh-d2: light-dark(rgba(197,206,221,.8), rgba(9,11,16,.75));
-    --sh-l:  light-dark(rgba(255,255,255,.78), rgba(54,62,78,.72));
+    --sh-d:  light-dark(rgba(209,217,230,.78), rgba(14,17,24,.52));
+    --sh-d2: light-dark(rgba(197,206,221,.8), rgba(10,12,18,.55));
+    --sh-l:  light-dark(rgba(255,255,255,.78), rgba(78,89,114,.46));
     --sh-l2: var(--sh-l);
-    --shadow:    14px 14px 26px var(--sh-d);
+    --shadow:    9px 9px 18px var(--sh-d);
+    --shadow-c:    7px 7px 15px var(--sh-d);
+    --shadow-c-hi: -7px -7px 15px var(--sh-l);
     --shadow-hi: -14px -14px 26px var(--sh-l);
     --shadow-s:    7px 7px 13px var(--sh-d);
     --shadow-s-hi: -7px -7px 13px var(--sh-l);
@@ -56,7 +58,7 @@
   h1 { font-size: 26px; font-weight: 600; letter-spacing: -.02em; margin: 6px 4px 2px; }
   .src { color: var(--sub); font-size: 12.5px; margin: 0 4px 14px; }
   h2 { font-size: 19px; font-weight: 600; letter-spacing: -.01em; margin: 30px 4px 14px; }
-  .card { background: var(--card-bg); border-radius: var(--radius); padding: 16px; box-shadow: var(--shadow), var(--shadow-hi), var(--edge); }
+  .card { background: var(--card-bg); border-radius: var(--radius); padding: 16px; box-shadow: var(--shadow-c), var(--shadow-c-hi), var(--edge); }
   .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
   .num { font-weight: 500; letter-spacing: -.025em; font-variant-numeric: tabular-nums; }
   .unit { color: var(--sub); font-size: .46em; font-weight: 400; margin-left: 4px; letter-spacing: 0; }
@@ -142,7 +144,7 @@
     body { border-radius: 20px; }
     .wrap { padding: 16px 10px 20px; }
     :root { --radius: 20px;
-      --shadow: 10px 10px 20px var(--sh-d); --shadow-hi: -10px -10px 20px var(--sh-l);
+      --shadow: 7px 7px 14px var(--sh-d); --shadow-hi: -7px -7px 14px var(--sh-l); --shadow-c: 5px 5px 11px var(--sh-d); --shadow-c-hi: -5px -5px 11px var(--sh-l);
       --shadow-s: 5px 5px 10px var(--sh-d); --shadow-s-hi: -5px -5px 10px var(--sh-l);
       --inset-m: inset 4px 4px 8px var(--sh-d); --inset-m-hi: inset -4px -4px 8px var(--sh-l); }
     h1 { font-size: 23px; margin: 4px 4px 2px; }
@@ -344,6 +346,10 @@ function render(d) {
   }
   var notes = [];
   if (r) notes.push("Resting Heart Rate status compares today with your 7-day average.");
+  if (d.filled_from_saved) {
+    var names = { sleep: "Sleep Score", body_battery: "Body Battery", stress: "Stress", hrv_status: "HRV Status", resting_heart_rate: "Resting Heart Rate", spo2: "SpO₂", respiration: "Respiration", steps: "Steps", fitness_age: "Fitness Age", trend_7d: "7-day trends" };
+    notes.push("From an earlier load (" + ago(Date.now() - new Date(d.filled_from_saved.oldest_at).getTime()) + "): " + d.filled_from_saved.sections.map(function (k) { return names[k] || k; }).join(", ") + ".");
+  }
   if (d.not_available) notes.push(esc(d.not_available));
   if (d.warnings) notes.push("Some data could not be loaded: " + esc(d.warnings.join("; ")));
   if (notes.length) h.push('<p class="foot">' + notes.join("<br>") + "</p>");

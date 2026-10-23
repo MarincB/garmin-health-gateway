@@ -3,6 +3,10 @@ main = "src/index.ts"
 compatibility_date = "2026-10-01"
 compatibility_flags = ["nodejs_compat"]
 
+# Background refresh of the dashboard snapshot (see src/index.ts scheduled).
+[triggers]
+crons = ["*/15 * * * *"]
+
 [vars]
 TIMEZONE = "Europe/Ljubljana"
 # Upper HR bound of zones 1-4 (zone 5 is everything above). Leave empty to skip zone times.

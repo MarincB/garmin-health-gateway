@@ -21,7 +21,7 @@ start() { # $1 = ENABLE_FIT_ANALYSIS
   pkill -f "node_modules/.bin/wrangler dev" 2>/dev/null || true
   sleep 1
   printf 'GARMIN_API_KEY="test-key"\nGATEWAY_SECRET="%s"\nGARMIN_BASE_URL="http://127.0.0.1:8799"\nENABLE_FIT_ANALYSIS="%s"\nHR_ZONES="130,142,152,165"\n' "$SECRET" "$1" > .dev.vars
-  npx wrangler dev -c .wrangler-test.toml --port 8787 --ip 127.0.0.1 >/tmp/wrangler.log 2>&1 &
+  npx wrangler dev -c .wrangler-test.toml --test-scheduled --port 8787 --ip 127.0.0.1 >/tmp/wrangler.log 2>&1 &
   for _ in $(seq 1 60); do curl -s -o /dev/null http://127.0.0.1:8787/health && return; sleep 1; done
   echo "wrangler dev did not start"; cat /tmp/wrangler.log; exit 1
 }
@@ -126,6 +126,14 @@ R=$(tool garmin_today '{}')
 check "Fitness Age falls back to the saved value" 'saved_at' "$R"
 check "fallback keeps the number" 'age\":30.1' "$R"
 check "only Fitness Age failed, so the page is not marked stale" "whole-page-fresh" "$(echo "$R" | python3 -c 'import sys,json; d=json.loads(json.load(sys.stdin)["result"]["content"][0]["text"]); print("whole-page-stale" if "stale" in d else "whole-page-fresh")')"
+curl -s "http://127.0.0.1:8799/__fail?on=0" >/dev/null
+curl -s "http://127.0.0.1:8799/__fail?on=sleep" >/dev/null
+R=$(tool garmin_today '{}')
+check "a section Garmin did not return is filled from the saved snapshot" 'filled_from_saved' "$R"
+check "the filled section is Sleep Score" 'score\":78' "$R"
+check "partial failure is not marked stale" "whole-page-fresh" "$(echo "$R" | python3 -c 'import sys,json; d=json.loads(json.load(sys.stdin)["result"]["content"][0]["text"]); print("whole-page-stale" if "stale" in d else "whole-page-fresh")')"
+curl -s "http://127.0.0.1:8799/__fail?on=0" >/dev/null
+check "scheduled refresh runs" "Ran scheduled event" "$(curl -s "http://127.0.0.1:8787/__scheduled?cron=*%2F15+*+*+*+*")"
 curl -s "http://127.0.0.1:8799/__fail?on=0" >/dev/null
 curl -s "http://127.0.0.1:8799/__fail?on=1" >/dev/null
 R=$(tool garmin_today '{}')

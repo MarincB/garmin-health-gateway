@@ -56,7 +56,7 @@ let tokenFailures = 1; // first token exchange answers 526 like the real host so
 http.createServer((req, res) => {
   const u = new URL(req.url, "http://x");
   calls.push(`${req.method} ${u.pathname}`);
-  if (u.pathname === "/__fail") { const on = u.searchParams.get("on"); failMode = on === "1" ? "all" : on === "fitness" ? "fitness" : ""; res.end("ok"); return; }
+  if (u.pathname === "/__fail") { const on = u.searchParams.get("on"); failMode = on === "1" ? "all" : on === "fitness" || on === "sleep" ? on : ""; res.end("ok"); return; }
   if (u.pathname === "/__calls") { res.end(JSON.stringify(calls)); return; }
   if (req.method === "POST" && u.pathname.endsWith("/personal-api-key/token")) {
     if (req.headers.authorization !== "ApiKey test-key") { res.writeHead(401).end("bad key"); return; }
@@ -64,7 +64,7 @@ http.createServer((req, res) => {
     res.end(fakeJwt); return;
   }
   if (req.headers.authorization !== `Bearer ${fakeJwt}`) { res.writeHead(401).end("no token"); return; }
-  if (failMode === "all" || (failMode === "fitness" && u.pathname.startsWith("/fitnessage-service/")) || dataFailures-- > 0) { res.writeHead(526).end("flaky"); return; }
+  if (failMode === "all" || (failMode === "fitness" && u.pathname.startsWith("/fitnessage-service/")) || (failMode === "sleep" && u.pathname.startsWith("/sleep-service/")) || dataFailures-- > 0) { res.writeHead(526).end("flaky"); return; }
   if (u.pathname.startsWith("/download-service/files/activity/")) {
     res.writeHead(200, { "content-type": "application/zip" }).end(Buffer.from(zip)); return;
   }
@@ -76,7 +76,7 @@ http.createServer((req, res) => {
     res.end(JSON.stringify({ hrvSummary: { lastNightAvg: 52, weeklyAvg: 55, status: "BALANCED" }, hrvReadings: Array.from({ length: 80 }, () => 50) })); return;
   }
   if (u.pathname === "/sleep-service/sleep/dailySleep") {
-    res.end(JSON.stringify({ dailySleepDTO: { sleepScores: { overall: { value: 78 } }, deepSleepSeconds: 5400 } })); return;
+    res.end(JSON.stringify({ sleepTimeSeconds: 27000, deepSleepSeconds: 5400, lightSleepSeconds: 15000, remSleepSeconds: 4800, awakeSleepSeconds: 1800, sleepScores: { overall: { value: 78, qualifierKey: "FAIR" } } })); return;
   }
   if (u.pathname.startsWith("/fitnessage-service/fitnessage/v2/")) {
     res.end(JSON.stringify({ chronologicalAge: 36, fitnessAge: 30.1, previousFitnessAge: 30.4, components: { rhr: { value: 41 } }, lastUpdated: "2026-10-22T00:00:00.0" })); return;

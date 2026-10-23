@@ -5,6 +5,7 @@ import { plannedSessions } from "./coach";
 import type { Ctx } from "./tools";
 import { addDays, localDate, localTime, r1, trim } from "./util";
 
+const SECTIONS = ["sleep", "body_battery", "stress", "hrv_status", "resting_heart_rate", "spo2", "respiration", "steps", "fitness_age", "trend_7d"] as const;
 const avg = (xs: number[]) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : undefined);
 
 export async function garminToday(ctx: Ctx, a: { date?: string } = {}) {
@@ -95,17 +96,34 @@ export async function garminToday(ctx: Ctx, a: { date?: string } = {}) {
     warnings: warnings.length ? warnings : undefined,
   });
 
-  // Garmin sits behind Cloudflare and answers 526 from Workers for hours at a time. Keep the last good
-  // snapshot (3 days, own KV) and show it, labelled, instead of an empty dashboard.
+  // Garmin sits behind Cloudflare and answers 526 from Workers most of the time, so a live load rarely
+  // gets every section. Keep the last good value of each section (own KV, 3 days): sections missing
+  // right now are filled from it and labelled; with nothing live at all the whole snapshot is served.
   const store = ctx.env.STATE;
   const fresh = !!(today.bodyBattery || s.sleepTimeSeconds || hs.status);
   if (!store) return snap;
-  const saved = await store.get<{ saved_at: string; data: Record<string, unknown> }>("garmin:today", "json").catch(() => null);
-  if (fresh) {
-    if (!saved || Date.now() - Date.parse(saved.saved_at) > 10 * 60_000) {
-      await store.put("garmin:today", JSON.stringify({ saved_at: new Date().toISOString(), data: { ...snap, warnings: undefined } }), { expirationTtl: 3 * 86400 }).catch(() => {});
+  type Saved = { saved_at: string; sections_at?: Record<string, string>; data: Record<string, any> };
+  const saved = await store.get<Saved>("garmin:today", "json").catch(() => null);
+  if (!fresh) return saved?.data ? { ...saved.data, stale: { saved_at: saved.saved_at }, warnings: snap.warnings } : snap;
+
+  const nowIso = new Date().toISOString();
+  const merged: Record<string, any> = { ...snap };
+  const filled: string[] = [];
+  const sectionsAt: Record<string, string> = {};
+  for (const k of SECTIONS) {
+    if (merged[k] !== undefined) sectionsAt[k] = nowIso;
+    else if (saved?.data?.date === date && saved.data[k] !== undefined) {
+      merged[k] = saved.data[k];
+      sectionsAt[k] = saved.sections_at?.[k] ?? saved.saved_at;
+      filled.push(k);
     }
-    return snap;
   }
-  return saved?.data ? { ...saved.data, stale: { saved_at: saved.saved_at }, warnings: snap.warnings } : snap;
+  if (filled.length) {
+    const oldest = filled.map((k) => sectionsAt[k]).sort()[0];
+    merged.filled_from_saved = { sections: filled, oldest_at: oldest };
+  }
+  if (!saved || Date.now() - Date.parse(saved.saved_at) > 5 * 60_000) {
+    await store.put("garmin:today", JSON.stringify({ saved_at: nowIso, sections_at: sectionsAt, data: { ...merged, warnings: undefined, filled_from_saved: undefined } }), { expirationTtl: 3 * 86400 }).catch(() => {});
+  }
+  return merged;
 }

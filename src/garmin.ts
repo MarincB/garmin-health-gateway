@@ -89,17 +89,19 @@ export class Garmin {
     const url = new URL(this.base + path);
     for (const [k, v] of Object.entries(params || {})) if (v !== undefined && v !== "") url.searchParams.set(k, String(v));
     let fresh = false; // 401: token revoked early, retry once with a fresh one
-    for (let attempt = 0; attempt < 4; attempt++) {
-      if (attempt) await new Promise((r) => setTimeout(r, 200 * attempt));
+    // About 8 in 10 single attempts hit Cloudflare 526 from Workers, independently, so many quick
+    // attempts beat a few slow ones. Worst case stays well under the 50 subrequests per call.
+    for (let attempt = 0; attempt < 8; attempt++) {
+      if (attempt) await new Promise((r) => setTimeout(r, 120 * attempt));
       let res: Response;
       try {
         res = await fetch(url, { headers: { Accept: accept, Authorization: `Bearer ${await this.token(fresh)}` } });
       } catch (e) {
-        if (attempt === 3) throw e;
+        if (attempt === 7) throw e;
         continue;
       }
       if (res.status === 401 && !fresh) { fresh = true; continue; }
-      if (res.status >= 500 && attempt < 3) continue; // Cloudflare 526 in front of Garmin clears on retry
+      if (res.status >= 500 && attempt < 7) continue; // Cloudflare 526 in front of Garmin clears on retry
       if (!res.ok) {
         const body = (await res.text()).slice(0, 300);
         throw new GarminError(res.status, `Garmin GET ${path} failed (${res.status}): ${body}`);

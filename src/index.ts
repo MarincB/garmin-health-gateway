@@ -7,6 +7,8 @@
 import type { Env } from "./env";
 import { handleMcp } from "./mcp";
 import { handleRest } from "./rest";
+import { makeCtx } from "./tools";
+import { garminToday } from "./dashboard";
 import { safeEqual } from "./util";
 
 const notFound = () => new Response("Not found", { status: 404 });
@@ -37,5 +39,12 @@ export default {
       return notFound();
     }
     return notFound();
+  },
+
+  // Refresh the dashboard snapshot in the background. Garmin answers Cloudflare 526 to most attempts
+  // from Workers, so views read a snapshot that is at most one interval old instead of a live fetch.
+  async scheduled(_controller: ScheduledController, env: Env): Promise<void> {
+    if (!env.STATE || !env.GARMIN_API_KEY) return;
+    await garminToday(makeCtx(env)).catch(() => {});
   },
 } satisfies ExportedHandler<Env>;
