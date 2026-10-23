@@ -59,7 +59,7 @@ check "HR zones from config" '\"zone\":5' "$R"
 check "list_activities compact" '\"avg_pace\":\"5:00/km\"' "$(tool list_activities '{"limit":2}')"
 check "training_load ramp" 'ramp_pct' "$(tool training_load '{"weeks":4}')"
 check "daily_wellness trims series" 'samples omitted' "$(tool daily_wellness '{"date":"2026-10-22"}')"
-check "fitness_age route" 'fitnessage/v2/2026-10-22' "$(tool fitness_age '{"date":"2026-10-22"}')"
+check "fitness_age route" 'fitnessAge' "$(tool fitness_age '{"date":"2026-10-22"}')"
 check "raw path allowlist" 'Path not allowed' "$(tool garmin_raw_get '{"path":"/download-service/files/activity/1"}')"
 check "bad args rejected" '"isError":true' "$(tool daily_wellness '{"date":"yesterday"}')"
 
@@ -118,6 +118,15 @@ R=$(tool garmin_today '{}')
 check "garmin_today returns structuredContent" 'structuredContent' "$R"
 check "garmin_today says what Garmin does not expose" 'Training Readiness' "$R"
 check "garmin_today has Body Battery from summaries" 'latest\":77' "$R"
+check "garmin_today says when the data was loaded" 'fetched_at' "$R"
+check "garmin_today says how far the watch synced" 'synced_until' "$R"
+check "garmin_today has live Fitness Age" 'age\":30.1' "$R"
+curl -s "http://127.0.0.1:8799/__fail?on=fitness" >/dev/null
+R=$(tool garmin_today '{}')
+check "Fitness Age falls back to the saved value" 'saved_at' "$R"
+check "fallback keeps the number" 'age\":30.1' "$R"
+check "only Fitness Age failed, so the page is not marked stale" "whole-page-fresh" "$(echo "$R" | python3 -c 'import sys,json; d=json.loads(json.load(sys.stdin)["result"]["content"][0]["text"]); print("whole-page-stale" if "stale" in d else "whole-page-fresh")')"
+curl -s "http://127.0.0.1:8799/__fail?on=0" >/dev/null
 curl -s "http://127.0.0.1:8799/__fail?on=1" >/dev/null
 R=$(tool garmin_today '{}')
 check "garmin_today serves the saved snapshot during a Garmin outage" 'stale' "$R"
