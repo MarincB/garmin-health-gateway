@@ -30,6 +30,11 @@ Nothing is stored, and no third party sits in between.
 | `daily_wellness` | Sleep, HRV, Body Battery, resting HR, stress for one day |
 | `wellness_trend` | The same as a daily trend over a range (handles Garmin's per-request limits) |
 | `profile_and_zones` | Profile settings and Garmin HR zones |
+| `athlete_baseline` | Weekly km, runs per week, longest run, easy pace and HR, best efforts, VO2max, resting HR, HRV baseline |
+| `set_goal`, `get_goal` | Store and read your training goal (needs the KV namespace, see Goal coach) |
+| `save_plan`, `get_plan`, `update_plan` | Store a periodized plan, read a week, patch days with a logged reason; 20 versions kept |
+| `get_today`, `plan_progress` | Today's session with recovery data and yesterday's check; planned vs done per week |
+| `get_routine` | Mobility and strength routines (IT band hip work, runner core, warm-up, foam rolling) |
 | `get_activity`, `garmin_raw_get` | Raw activity JSON, and an allowlisted read-only escape hatch |
 
 ## Costs
@@ -104,11 +109,27 @@ Routes: `/api/tools` (list with JSON schemas), `/api/<tool_name>`, and the alias
 `today`, `latest-run`, `load`, `trend`, `activities`. Arguments go in the query string
 (`?date=2026-10-22&limit=5`) or as a JSON body with POST.
 
+## Goal coach
+
+Say "I want to run a half marathon next year", or pick the `plan_goal` prompt in Claude. Claude reads
+your Garmin baseline, interviews you one or two questions at a time, saves your goal and a
+periodized plan in your Worker, and from then on adapts it to your sleep and HRV. The `today` prompt
+gives a go, adjust or rest verdict. Needs a one-time KV namespace (free tier):
+
+```bash
+npx wrangler kv namespace create STATE
+```
+
+Uncomment the `[[kv_namespaces]]` block at the end of `wrangler.toml`, paste the id, then
+`npx wrangler deploy`. The plan stays in your Cloudflare account. The gateway can't push workouts
+to your watch (the Personal API is read-only), so the plan lives in the chat and in `get_today`.
+Not medical advice; for pain that changes your gait or gets worse, see a physio.
+
 ## Daily morning report in Claude (free with your plan)
 
 Ask Claude in any chat with the connector enabled:
 
-> Every morning at 7:30, check my Garmin data and send me a recovery report: last night's
+> Every morning at 7:30, check my Garmin data (use get_today if I have a plan) and send me a recovery report, including today's planned session: last night's
 > sleep, HRV against my baseline, Body Battery, resting HR, yesterday's training and this
 > week's load, and a clear verdict on whether today should be hard, easy or rest.
 

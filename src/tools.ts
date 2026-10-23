@@ -4,6 +4,9 @@ import type { Env } from "./env";
 import { flag, hrZonesOf, tzOf } from "./env";
 import { Garmin, RAW_ALLOWED_PREFIXES } from "./garmin";
 import { analyzeFit, extractFit, pace } from "./fit";
+// coach.ts imports helpers back from this file. Safe because they are function declarations
+// and nothing but tools.ts or index.ts imports coach.ts first.
+import { COACH_TOOLS } from "./coach";
 import { addDays, daysBetween, localDate, mondayOf, pick, r1, trim, windows } from "./util";
 
 export interface Ctx { env: Env; g: Garmin; tz: string }
@@ -215,6 +218,7 @@ export const TOOLS: Tool[] = [
       return trim(await ctx.g.get(a.path, a.params));
     },
   },
+  ...COACH_TOOLS,
 ];
 
 export async function runTool(ctx: Ctx, name: string, rawArgs: unknown) {

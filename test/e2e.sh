@@ -11,14 +11,17 @@ cleanup() {
   pkill -f "node_modules/.bin/wrangler dev" 2>/dev/null || true
   pkill -f "test/mock-garmin.mjs" 2>/dev/null || true
 }
-trap 'cleanup; rm -f .dev.vars' EXIT
+trap 'cleanup; rm -f .dev.vars .wrangler-test.toml' EXIT
+
+# Same config as production plus a local KV binding for the goal coach.
+{ cat wrangler.toml; printf '\n[[kv_namespaces]]\nbinding = "STATE"\nid = "test-state"\n'; } > .wrangler-test.toml
 
 start() { # $1 = ENABLE_FIT_ANALYSIS
   pkill -f "workerd-linux" 2>/dev/null || true
   pkill -f "node_modules/.bin/wrangler dev" 2>/dev/null || true
   sleep 1
   printf 'GARMIN_API_KEY="test-key"\nGATEWAY_SECRET="%s"\nGARMIN_BASE_URL="http://127.0.0.1:8799"\nENABLE_FIT_ANALYSIS="%s"\nHR_ZONES="130,142,152,165"\n' "$SECRET" "$1" > .dev.vars
-  npx wrangler dev --port 8787 --ip 127.0.0.1 >/tmp/wrangler.log 2>&1 &
+  npx wrangler dev -c .wrangler-test.toml --port 8787 --ip 127.0.0.1 >/tmp/wrangler.log 2>&1 &
   for _ in $(seq 1 60); do curl -s -o /dev/null http://127.0.0.1:8787/health && return; sleep 1; done
   echo "wrangler dev did not start"; cat /tmp/wrangler.log; exit 1
 }
@@ -36,6 +39,7 @@ tool() { rpc "{\"jsonrpc\":\"2.0\",\"id\":3,\"method\":\"tools/call\",\"params\"
 code() { curl -s -o /dev/null -w "%{http_code}" "$@"; }
 
 cleanup; sleep 1
+rm -rf .wrangler/state # local KV from earlier runs
 node test/mock-garmin.mjs >/dev/null 2>&1 &
 start true
 
@@ -46,7 +50,7 @@ check "REST without secret -> 404" "404" "$(code $B/api/today)"
 
 echo "MCP"
 check "initialize" '"serverInfo":{"name":"garmin-health-gateway"' "$(rpc '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"t","version":"1"}}}')"
-check "tools/list has 8 tools" "8" "$(rpc '{"jsonrpc":"2.0","id":2,"method":"tools/list"}' | python3 -c 'import sys,json; print(len(json.load(sys.stdin)["result"]["tools"]))')"
+check "tools/list has 17 tools" "17" "$(rpc '{"jsonrpc":"2.0","id":2,"method":"tools/list"}' | python3 -c 'import sys,json; print(len(json.load(sys.stdin)["result"]["tools"]))')"
 R=$(tool analyze_activity '{}')
 check "analyze_activity FIT mode" '\"mode\":\"fit\"' "$R"
 check "splits computed" '\"split\":\"10\"' "$R"
@@ -57,6 +61,59 @@ check "training_load ramp" 'ramp_pct' "$(tool training_load '{"weeks":4}')"
 check "daily_wellness trims series" 'samples omitted' "$(tool daily_wellness '{"date":"2026-10-22"}')"
 check "raw path allowlist" 'Path not allowed' "$(tool garmin_raw_get '{"path":"/download-service/files/activity/1"}')"
 check "bad args rejected" '"isError":true' "$(tool daily_wellness '{"date":"yesterday"}')"
+
+echo "Goal coach"
+D=$(python3 -c 'import datetime as d; print(d.datetime.now(d.timezone.utc).date())')
+PLAN=$(python3 - <<'PY'
+import datetime as d, json
+t = d.datetime.now(d.timezone.utc).date()
+def s(n, kind, title, km=None):
+    x = {"date": str(t - d.timedelta(days=n)), "kind": kind, "title": title}
+    if km: x["distance_km"] = km
+    return x
+weeks = {}
+for x in [s(2, "easy", "Easy 6 km", 6), s(1, "tempo", "Tempo 5 km", 5), s(0, "easy", "Easy 8 km", 8)]:
+    dt = d.date.fromisoformat(x["date"]); mon = str(dt - d.timedelta(days=dt.weekday()))
+    weeks.setdefault(mon, []).append(x)
+print(json.dumps({"phases": [{"name": "base", "start": min(weeks), "end": str(t), "focus": "aerobic base"}],
+  "weeks": [{"week_of": k, "target_km": 20, "focus": "base", "sessions": v} for k, v in sorted(weeks.items())],
+  "rules": ["max +10% weekly km"]}))
+PY
+)
+check "get_goal empty at start" 'null' "$(tool get_goal '{}')"
+check "save_plan needs a goal" 'Save a goal first' "$(tool save_plan "$PLAN")"
+check "set_goal" 'created_at' "$(tool set_goal '{"type":"race","distance_km":21.1,"target_date":"2027-04-18","days_per_week":4,"injuries":[{"area":"IT band","status":"past"}]}')"
+check "get_goal round trip" 'IT band' "$(tool get_goal '{}')"
+check "set_goal rejects bad type" '"isError":true' "$(tool set_goal '{"type":"swim","days_per_week":4}')"
+check "save_plan v1" 'version\":1' "$(tool save_plan "$PLAN")"
+check "save_plan v2 increments" 'version\":2' "$(tool save_plan "$PLAN")"
+check "zod rejects malformed plan" '"isError":true' "$(tool save_plan '{"phases":[],"weeks":[],"rules":[]}')"
+check "non-Monday week rejected" 'not a Monday' "$(tool save_plan "$(echo "$PLAN" | python3 -c 'import sys,json,datetime as d; p=json.load(sys.stdin); w=p["weeks"][0]; w["week_of"]=str(d.date.fromisoformat(w["week_of"])+d.timedelta(days=1)); print(json.dumps(p))')")"
+check "get_plan one week" 'Easy 6 km' "$(tool get_plan "{\"week\":\"$(echo "$PLAN" | python3 -c 'import sys,json; print(json.load(sys.stdin)["weeks"][0]["week_of"])')\"}")"
+Y2=$(python3 -c 'import datetime as d; print(d.datetime.now(d.timezone.utc).date()-d.timedelta(days=2))')
+Y1=$(python3 -c 'import datetime as d; print(d.datetime.now(d.timezone.utc).date()-d.timedelta(days=1))')
+R=$(tool get_today "{\"date\":\"$Y1\"}")
+check "get_today matches done session" 'done\":true' "$R"
+R=$(tool get_today "{\"date\":\"$D\"}")
+check "get_today: missed session not done" 'done\":false' "$R"
+check "get_today includes recovery" 'hrvSummary' "$R"
+R=$(tool update_plan "{\"changes\":[{\"date\":\"$D\",\"session\":{\"date\":\"$D\",\"kind\":\"mobility\",\"title\":\"Mobility only\",\"mobility\":[\"itb-hip-mobility\"]}}],\"reason\":\"HRV low\"}")
+check "update_plan patches one date" 'Mobility only' "$R"
+check "update_plan bumps version" 'version\":3' "$R"
+check "update_plan logs reason in history" 'HRV low' "$(tool get_plan '{"history":true}')"
+R=$(tool update_plan "{\"changes\":[{\"date\":\"$D\",\"session\":{\"date\":\"$D\",\"kind\":\"mobility\",\"title\":\"x\",\"mobility\":[\"nope\"]}}],\"reason\":\"test\"}")
+check "update_plan rejects unknown routine" 'Unknown mobility routine' "$R"
+check "plan_progress counts done sessions" 'sessions_done' "$(tool plan_progress '{}')"
+check "get_routine by id" 'Figure-4' "$(tool get_routine '{"id":"itb-hip-mobility"}')"
+R=$(tool athlete_baseline '{"weeks":6}')
+check "athlete_baseline longest run" 'longest_run\":{\"km\":15' "$R"
+check "athlete_baseline weekly km" 'weekly_km' "$R"
+check "athlete_baseline best efforts" '10k' "$R"
+echo "MCP prompts"
+check "prompts/list" 'plan_goal' "$(rpc '{"jsonrpc":"2.0","id":4,"method":"prompts/list"}')"
+check "prompts/get plan_goal" 'athlete_baseline' "$(rpc '{"jsonrpc":"2.0","id":5,"method":"prompts/get","params":{"name":"plan_goal","arguments":{"goal":"half marathon"}}}')"
+check "prompts/get today" 'get_today' "$(rpc '{"jsonrpc":"2.0","id":6,"method":"prompts/get","params":{"name":"today"}}')"
+check "resource library://mobility" 'itb-strength' "$(rpc '{"jsonrpc":"2.0","id":7,"method":"resources/read","params":{"uri":"library://mobility"}}')"
 
 echo "REST"
 check "GET /api/<secret>/today" '"hrvSummary"' "$(curl -s $B/api/$SECRET/today?date=2026-10-22)"

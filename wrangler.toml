@@ -14,3 +14,9 @@ ENABLE_FIT_ANALYSIS = "false"
 # Secrets: set with `npx wrangler secret put <NAME>`, never commit them.
 #   GARMIN_API_KEY   your Garmin Personal API key
 #   GATEWAY_SECRET   long random string (openssl rand -hex 24); part of every private URL
+
+# Goal coach storage (goal, plan, history). Create the namespace, paste the id, then deploy:
+#   npx wrangler kv namespace create STATE
+# [[kv_namespaces]]
+# binding = "STATE"
+# id = "<id printed by the command above>"
