@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Garmin Health Gateway: widget mockup</title>
+<!--
+  Marketing mockup of the Today widget inside an AI chat, with fictional sample data (sample.json).
+  Serve the repo root (python3 -m http.server) and open /docs/mockup/index.html.
+  ?mode=dark | light | mixed (default). Screenshots live in docs/images.
+-->
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", Roboto, sans-serif;
+    min-height: 100vh; color: #1b1d27; -webkit-font-smoothing: antialiased;
+    background:
+      radial-gradient(900px 520px at 12% 8%, #cfe9f3 0%, transparent 60%),
+      radial-gradient(800px 520px at 92% 18%, #e0dcff 0%, transparent 62%),
+      radial-gradient(900px 600px at 50% 110%, #ffe6dc 0%, transparent 60%),
+      #eef1f7;
+    padding: 56px 40px 64px;
+  }
+  .head { text-align: center; margin-bottom: 40px; }
+  .head h1 { font-size: 40px; letter-spacing: -.03em; font-weight: 650; margin: 0 0 10px; }
+  .head p { font-size: 18px; color: #5a5f73; margin: 0; }
+  .stage { display: flex; gap: 40px; justify-content: center; align-items: flex-start; }
+  .phone {
+    width: 350px; height: 760px; border-radius: 52px; padding: 11px; flex: none; position: relative;
+    background: linear-gradient(145deg, #2b2e3a, #0f1118);
+    box-shadow: 0 40px 70px rgba(40,50,90,.28), 0 10px 24px rgba(40,50,90,.22), inset 0 0 0 2px rgba(255,255,255,.07);
+  }
+  .phone:nth-child(2) { margin-top: 36px; }
+  .screen { width: 100%; height: 100%; border-radius: 42px; overflow: hidden; position: relative; }
+  .screen.dark { background: #171a21; color: #f1f3f8; }
+  .screen.light { background: #ffffff; color: #1b1d27; }
+  .notch { position: absolute; top: 20px; left: 50%; width: 104px; height: 28px; margin-left: -52px; border-radius: 16px; background: #05060a; z-index: 5; }
+  .status { height: 52px; display: flex; justify-content: space-between; align-items: flex-end; padding: 0 30px 6px; font-size: 14px; font-weight: 600; position: relative; z-index: 4; }
+  .bar { height: 46px; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 600; opacity: .8; border-bottom: 1px solid rgba(128,128,150,.18); }
+  .scroller { position: absolute; top: 98px; bottom: 0; left: 0; right: 0; overflow: hidden; }
+  .chat { padding: 14px 14px 0; }
+  .bubble { max-width: 78%; padding: 10px 14px; border-radius: 18px; font-size: 14.5px; line-height: 1.35; margin: 0 0 12px auto; width: fit-content; }
+  .dark .bubble { background: #2a2f3b; }
+  .light .bubble { background: #eceef4; }
+  .reply { font-size: 14.5px; line-height: 1.4; margin: 4px 2px 10px; }
+  .chip { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; padding: 5px 10px; border-radius: 10px; margin-bottom: 10px; }
+  .dark .chip { background: #232834; color: #9aa3b8; } .light .chip { background: #f1f2f7; color: #6b7185; }
+  .chip i { width: 7px; height: 7px; border-radius: 50%; background: #3fd6bd; display: inline-block; }
+  iframe { border: 0; width: 100%; display: block; background: transparent; }
+  .home { position: absolute; bottom: 8px; left: 50%; width: 120px; height: 5px; margin-left: -60px; border-radius: 3px; background: rgba(128,128,150,.55); z-index: 6; }
+  .fade { position: absolute; left: 0; right: 0; bottom: 0; height: 70px; z-index: 3; pointer-events: none; }
+  .dark .fade { background: linear-gradient(to top, #171a21, transparent); }
+  .light .fade { background: linear-gradient(to top, #fff, transparent); }
+  .label { text-align: center; margin-top: 18px; font-size: 14px; color: #5a5f73; font-weight: 500; }
+  .foot { text-align: center; margin-top: 44px; color: #6a6f84; font-size: 14px; }
+</style>
+</head>
+<body>
+<div class="head">
+  <h1>Your Garmin data, inside your AI chat</h1>
+  <p>Sleep Score, Body Battery, Stress, Fitness Age and more, drawn as a soft, light and dark dashboard.</p>
+</div>
+<div class="stage" id="stage"></div>
+<p class="foot">Fictional sample data. Garmin Health Gateway: self-hosted MCP connector for the Garmin Personal API.</p>
+
+<script>
+"use strict";
+var mode = new URLSearchParams(location.search).get("mode") || "mixed";
+var phones = [
+  { theme: "dark",  scroll: 0,    label: "Today at a glance" },
+  { theme: "light", scroll: 1085, label: "Health Monitor" },
+  { theme: "dark",  scroll: 1565, label: "Sleep and 7-day trends" }
+].map(function (p) { return mode === "mixed" ? p : { theme: mode, scroll: p.scroll, label: p.label }; });
+var stage = document.getElementById("stage");
+
+phones.forEach(function (p, i) {
+  var wrap = document.createElement("div");
+  wrap.innerHTML =
+    '<div class="phone"><div class="notch"></div><div class="screen ' + p.theme + '">' +
+    '<div class="status"><span>9:41</span><span>●●● 5G ▮</span></div>' +
+    '<div class="bar">New chat</div>' +
+    '<div class="scroller" id="sc' + i + '"><div class="chat">' +
+    '<div class="bubble">Show me my day</div>' +
+    '<span class="chip"><i></i>garmin_today</span>' +
+    '<div class="reply">Here is today at a glance.</div>' +
+    '<iframe id="f' + i + '" src="../../src/widgets/today.html?still=1" style="height:2400px"></iframe>' +
+    '</div></div><div class="fade"></div><div class="home"></div></div></div>' +
+    '<div class="label">' + p.label + "</div>";
+  stage.appendChild(wrap);
+});
+
+// One listener, registered before any iframe loads, so no handshake is missed.
+var dataP = fetch("sample.json").then(function (r) { return r.json(); });
+window.addEventListener("message", function (e) {
+  var m = e.data;
+  if (!m || m.jsonrpc !== "2.0") return;
+  phones.forEach(function (p, i) {
+    var f = document.getElementById("f" + i), sc = document.getElementById("sc" + i);
+    if (!f || e.source !== f.contentWindow) return;
+    if (m.method === "ui/initialize") {
+      f.contentWindow.postMessage({ jsonrpc: "2.0", id: m.id, result: { protocolVersion: "2025-06-18", hostCapabilities: {}, hostInfo: { name: "mockup", version: "1" }, hostContext: { theme: p.theme } } }, "*");
+    } else if (m.method === "ui/notifications/initialized") {
+      dataP.then(function (data) {
+        f.contentWindow.postMessage({ jsonrpc: "2.0", method: "ui/notifications/tool-result", params: { content: [{ type: "text", text: JSON.stringify(data) }], structuredContent: data } }, "*");
+      });
+    } else if (m.method === "ui/notifications/size-changed") {
+      f.style.height = m.params.height + "px";
+      sc.scrollTop = p.scroll;
+      document.title = "mockup ready";
+    }
+  });
+});
+</script>
+</body>
+</html>

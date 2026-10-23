@@ -289,14 +289,15 @@ function render(d) {
   var h = [];
   var when = new Date(d.date + "T00:00:00Z").toLocaleDateString("en-US", { month: "long", day: "numeric", timeZone: "UTC" });
   var src = ["Data provided by Garmin"];
-  if (d.fetched_at && !d.stale) src.push("Loaded " + new Date(d.fetched_at).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }));
+  if (d.fetched_at && !oldStale) src.push("Loaded " + new Date(d.fetched_at).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }));
   var info = "";
-  if (has(d.synced_age_min) && !d.stale) {
+  if (has(d.synced_age_min) && !oldStale) {
     var behind = d.synced_age_min > 120;
     info = '<br><span class="' + (behind ? "warn" : "") + '">Watch last synced ' + ago(d.synced_age_min * 60000) + (behind ? ": steps and heart data may be behind" : "") + "</span>";
   }
   h.push("<h1>Today, " + when + '</h1><p class="src">' + src.join(" · ") + info + "</p>");
-  if (d.stale) {
+  var oldStale = d.stale && Date.now() - Date.parse(d.stale.saved_at) > 20 * 60000; // a copy this recent is as good as live
+  if (oldStale) {
     var at = new Date(d.stale.saved_at);
     h.push('<div class="banner"><b>Showing saved data</b> from ' + at.toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) +
       " (" + ago(Date.now() - at.getTime()) + "). Garmin is not answering right now.<br><button class=\"btn\" onclick=\"refresh(this)\">Refresh</button></div>");
@@ -411,7 +412,7 @@ function trends(rows) {
 function refresh(btn) {
   btn.disabled = true; btn.textContent = "Refreshing…";
   var done = false, t = setTimeout(function () { if (!done) { btn.disabled = false; btn.textContent = "Refresh unavailable here"; } }, 25000);
-  request("tools/call", { name: "garmin_today", arguments: {} }).then(function (r) {
+  request("tools/call", { name: "garmin_today", arguments: { refresh: true } }).then(function (r) {
     done = true; clearTimeout(t);
     var d = r && dataOf(r);
     if (d && !d.stale && !(d.warnings && d.warnings.length >= 3)) render(d);
@@ -447,7 +448,7 @@ function play(g) {
 }
 function prepareMotion() {
   var app = $("app");
-  if (reduceMotion || !("IntersectionObserver" in window)) return;
+  if (reduceMotion || /[?&]still\b/.test(location.search) || !("IntersectionObserver" in window)) return; // ?still: static render for screenshots
   var groups = app.querySelectorAll(".card, .tile, .banner");
   app.classList.add("anim");
   groups.forEach(function (g, i) { g.classList.add("reveal"); g.style.setProperty("--d", (i % 4) * 60 + "ms"); });

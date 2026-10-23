@@ -9,7 +9,13 @@ key into:
 
 It runs on your own Cloudflare account, on the free tier. Your key stays in Cloudflare's
 encrypted secrets, and your health data goes from Garmin to your Worker to your AI app.
-Nothing is stored, and no third party sits in between.
+No third party sits in between. The only things kept are in your own Cloudflare KV: your goal and plan if you use the goal coach, and a short-lived copy of the dashboard snapshot (3 days) so the widget loads fast.
+
+<p align="center">
+  <img src="docs/images/widget-mockup-mixed.png" alt="The Today dashboard widget in an AI chat, in dark and light mode" width="900">
+</p>
+
+<sub>Fictional sample data. Dark-only and light-only versions: `docs/images/widget-mockup-dark.png` and `widget-mockup-light.png`. Regenerate them from `docs/mockup/index.html` (serve the repo root, open the page, optional `?mode=dark|light`).</sub>
 
 > Unofficial project, not affiliated with Garmin. Endpoint routes follow Garmin's official
 > [`garmin-connect-personal-api-python`](https://github.com/garmin/connect-personal-api-python) client.
