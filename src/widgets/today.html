@@ -24,12 +24,16 @@
     --sh-d2: light-dark(rgba(197,206,221,.8), rgba(10,12,18,.55));
     --sh-l:  light-dark(rgba(255,255,255,.78), rgba(78,89,114,.46));
     --sh-l2: var(--sh-l);
+    /* main cards: the top-left highlight only exists in light mode (it is invisible there anyway) */
+    --sh-lc: light-dark(rgba(255,255,255,.78), transparent);
+    --edge-col: light-dark(rgba(255,255,255,.6), transparent);
+    --edge-c: inset 0 1px 0 var(--edge-col);
     --shadow:    9px 9px 18px var(--sh-d);
     --shadow-c:    7px 7px 15px var(--sh-d);
-    --shadow-c-hi: -7px -7px 15px var(--sh-l);
+    --shadow-c-hi: -7px -7px 15px var(--sh-lc);
     --shadow-hi: -14px -14px 26px var(--sh-l);
     --shadow-s:    7px 7px 13px var(--sh-d);
-    --shadow-s-hi: -7px -7px 13px var(--sh-l);
+    --shadow-s-hi: -7px -7px 13px var(--sh-lc);
     --edge: inset 0 0 0 transparent;
     --inset-m:    inset 5px 5px 11px var(--sh-d);
     --inset-m-hi: inset -5px -5px 11px var(--sh-l);
@@ -58,7 +62,7 @@
   h1 { font-size: 26px; font-weight: 600; letter-spacing: -.02em; margin: 6px 4px 2px; }
   .src { color: var(--sub); font-size: 12.5px; margin: 0 4px 14px; }
   h2 { font-size: 19px; font-weight: 600; letter-spacing: -.01em; margin: 30px 4px 14px; }
-  .card { background: var(--card-bg); border-radius: var(--radius); padding: 16px; box-shadow: var(--shadow-c), var(--shadow-c-hi), var(--edge); }
+  .card { background: var(--card-bg); border-radius: var(--radius); padding: 16px; box-shadow: var(--shadow-c), var(--shadow-c-hi), var(--edge-c); }
   .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
   .num { font-weight: 500; letter-spacing: -.025em; font-variant-numeric: tabular-nums; }
   .unit { color: var(--sub); font-size: .46em; font-weight: 400; margin-left: 4px; letter-spacing: 0; }
@@ -96,7 +100,7 @@
   /* tiles */
   .tile { --tint: var(--blue); --amt: 0%; border-radius: 20px; padding: 14px 14px 14px 16px; position: relative; min-height: 104px;
     background: linear-gradient(135deg, var(--card-hi) 0%, var(--card-lo) 55%, color-mix(in srgb, var(--tint) var(--amt), var(--card-lo)) 130%);
-    box-shadow: var(--shadow-s), var(--shadow-s-hi), var(--edge); }
+    box-shadow: var(--shadow-s), var(--shadow-s-hi), var(--edge-c); }
   .tile::after { content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
     background: radial-gradient(120% 90% at 100% 100%, color-mix(in srgb, var(--tint) calc(var(--amt) * .55), transparent), transparent 62%); }
   .tile > * { position: relative; z-index: 1; }
@@ -144,8 +148,8 @@
     body { border-radius: 20px; }
     .wrap { padding: 16px 10px 20px; }
     :root { --radius: 20px;
-      --shadow: 7px 7px 14px var(--sh-d); --shadow-hi: -7px -7px 14px var(--sh-l); --shadow-c: 5px 5px 11px var(--sh-d); --shadow-c-hi: -5px -5px 11px var(--sh-l);
-      --shadow-s: 5px 5px 10px var(--sh-d); --shadow-s-hi: -5px -5px 10px var(--sh-l);
+      --shadow: 7px 7px 14px var(--sh-d); --shadow-hi: -7px -7px 14px var(--sh-l); --shadow-c: 5px 5px 11px var(--sh-d); --shadow-c-hi: -5px -5px 11px var(--sh-lc);
+      --shadow-s: 5px 5px 10px var(--sh-d); --shadow-s-hi: -5px -5px 10px var(--sh-lc);
       --inset-m: inset 4px 4px 8px var(--sh-d); --inset-m-hi: inset -4px -4px 8px var(--sh-l); }
     h1 { font-size: 23px; margin: 4px 4px 2px; }
     h2 { margin: 24px 4px 12px; font-size: 18px; }
