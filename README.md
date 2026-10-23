@@ -35,6 +35,8 @@ Nothing is stored, and no third party sits in between.
 | `save_plan`, `get_plan`, `update_plan` | Store a periodized plan, read a week, patch days with a logged reason; 20 versions kept |
 | `get_today`, `plan_progress` | Today's session with recovery data and yesterday's check; planned vs done per week |
 | `get_routine` | Mobility and strength routines (IT band hip work, runner core, warm-up, foam rolling) |
+| `garmin_today` | Today at a glance with a dashboard widget: Sleep Score, Body Battery, Stress, HRV Status, Resting Heart Rate, SpO2, Respiration, Steps, Fitness Age, 7-day trend, today's planned session |
+| `fitness_age` | Garmin Fitness Age with the factors behind it |
 | `get_activity`, `garmin_raw_get` | Raw activity JSON, and an allowlisted read-only escape hatch |
 
 ## Costs
@@ -108,6 +110,13 @@ curl -H "Authorization: Bearer <GATEWAY_SECRET>" "https://<worker>/api/load?week
 Routes: `/api/tools` (list with JSON schemas), `/api/<tool_name>`, and the aliases
 `today`, `latest-run`, `load`, `trend`, `activities`. Arguments go in the query string
 (`?date=2026-10-22&limit=5`) or as a JSON body with POST.
+
+## Dashboard widget
+
+`garmin_today` renders as a card dashboard in clients that support MCP Apps (Claude does). It
+follows the app's light or dark theme, uses Garmin's own names for every metric, and only shows
+what Garmin returns. Training Readiness, Training Status and Endurance Score are not exposed by
+Garmin's Personal API, so they are not shown. Ask "show me my day" in a chat with the connector.
 
 ## Goal coach
 

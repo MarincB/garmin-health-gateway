@@ -11,7 +11,7 @@ first for his own running (half marathon goal, IT band history), published for o
 - `src/mcp.ts`: stateless MCP over Streamable HTTP (`WebStandardStreamableHTTPServerTransport`, JSON responses)
 - `src/rest.ts`: REST wrapper over the same tools, plus aliases
 - `src/garmin.ts`: Personal API client. Routes copied from Garmin's official Python client
-  (`garmin-connect-personal-api-python`). Token: POST key, get JWT, cache per isolate, refresh 1h before expiry
+  (`garmin-connect-personal-api-python`). Token: POST key, get JWT, cache per isolate and in KV (`garmin:token`, the token endpoint often answers 526 from Workers), refresh 1h before expiry
 - `src/fit.ts`: FIT parsing (`@garmin/fitsdk`, `fflate`) for splits, decoupling, zones, dynamics
 - `src/env.ts`: all config; `src/util.ts`: dates, trimming, crypto helpers
 

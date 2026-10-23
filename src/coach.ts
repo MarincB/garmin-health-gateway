@@ -175,12 +175,14 @@ export async function athleteBaseline(ctx: Ctx, a: { weeks?: number } = {}) {
   }
 
   const wStart = addDays(today, -13);
+  const warnings: string[] = [];
+  const soft = <T,>(label: string, p: Promise<T>) => p.catch((e: Error) => { warnings.push(`${label}: ${e.message}`); return null; });
   const [summaries, hrv, zones] = await Promise.all([
-    ctx.g.dailySummaries(wStart, today).catch(() => null),
-    ctx.g.hrvSummaries(wStart, today).catch(() => null),
-    ctx.g.hrZones().catch(() => null),
+    soft("daily summaries", ctx.g.dailySummaries(wStart, today)),
+    soft("HRV", ctx.g.hrvSummaries(wStart, today)),
+    soft("HR zones", ctx.g.hrZones()),
   ]);
-  const rhr = median(collect(summaries, "restingHeartRate"));
+  const rhr = median(collect((summaries as any)?.data, "restingValue"));
   return trim({
     range: [start, today],
     weeks_analyzed: done.length,
@@ -193,7 +195,15 @@ export async function athleteBaseline(ctx: Ctx, a: { weeks?: number } = {}) {
     resting_hr: r1(rhr, 0),
     hrv: { baseline: r1(median(collect(hrv, "weeklyAvg")), 0), last_night: r1(median(collect(hrv, "lastNightAvg")), 0), note: "Median over the last 14 days" },
     hr_zones: zones,
+    warnings: warnings.length ? warnings : undefined,
   });
+}
+
+// Sessions planned for a date (empty without STATE or a plan); used by the Today widget.
+export async function plannedSessions(ctx: Ctx, date: string): Promise<Session[]> {
+  if (!ctx.env.STATE) return [];
+  const plan = await getPlan(ctx);
+  return plan?.weeks.flatMap((w) => w.sessions).filter((s) => s.date === date) ?? [];
 }
 
 async function today(ctx: Ctx, a: { date?: string } = {}) {

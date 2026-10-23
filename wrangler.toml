@@ -6,7 +6,7 @@ compatibility_flags = ["nodejs_compat"]
 [vars]
 TIMEZONE = "Europe/Ljubljana"
 # Upper HR bound of zones 1-4 (zone 5 is everything above). Leave empty to skip zone times.
-HR_ZONES = ""
+HR_ZONES = "104,122,139,157"
 # "true" parses FIT files for splits, decoupling and zone times. Needs Workers Paid ($5/month):
 # parsing a 50-minute run takes ~70 ms CPU, the free plan allows 10 ms.
 ENABLE_FIT_ANALYSIS = "false"
@@ -17,6 +17,6 @@ ENABLE_FIT_ANALYSIS = "false"
 
 # Goal coach storage (goal, plan, history). Create the namespace, paste the id, then deploy:
 #   npx wrangler kv namespace create STATE
-# [[kv_namespaces]]
-# binding = "STATE"
-# id = "<id printed by the command above>"
+[[kv_namespaces]]
+binding = "STATE"
+id = "919fc7c94fa54d34bdd5e6b68e7fe506"

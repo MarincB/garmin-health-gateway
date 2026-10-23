@@ -9,6 +9,7 @@ const REFRESH_WINDOW_S = 60 * 60;
 
 // Per-isolate cache. A cold start simply exchanges the key again.
 let cached: { token: string; exp: number; keyHash: string } | null = null;
+let inflight: Promise<string> | null = null;
 
 export class GarminError extends Error {
   constructor(public status: number, message: string) {
@@ -38,30 +39,67 @@ export class Garmin {
     this.base = (env.GARMIN_BASE_URL || DEFAULT_BASE).replace(/\/$/, "");
   }
 
-  private async token(force = false): Promise<string> {
+  // Parallel calls on a cold isolate share one exchange instead of each doing their own
+  // (every attempt counts toward the 50-subrequest limit on the free plan).
+  private token(force = false): Promise<string> {
+    if (force) return this.exchange(true);
+    return (inflight ??= this.exchange(false).finally(() => { inflight = null; }));
+  }
+
+  private async exchange(force: boolean): Promise<string> {
     const keyHash = await sha(this.base + "\0" + this.env.GARMIN_API_KEY);
     const now = Date.now() / 1000;
     if (!force && cached && cached.keyHash === keyHash && cached.exp - now > REFRESH_WINDOW_S) {
       return cached.token;
     }
-    const res = await fetch(this.base + TOKEN_PATH, {
-      method: "POST",
-      headers: { Accept: "*/*", Authorization: `ApiKey ${this.env.GARMIN_API_KEY}` },
-    });
+    // Shared across isolates through the user's own KV: the token endpoint is flaky from Workers
+    // (526), so one successful exchange per day beats one per cold start.
+    if (!force && this.env.STATE) {
+      const hit = await this.env.STATE.get<{ token: string; exp: number; keyHash: string }>("garmin:token", "json").catch(() => null);
+      if (hit && hit.keyHash === keyHash && hit.exp - now > REFRESH_WINDOW_S) {
+        cached = hit;
+        return hit.token;
+      }
+    }
+    // Cloudflare sometimes answers 526 for this host from a Worker; it clears on retry.
+    let res!: Response;
+    for (let attempt = 0; attempt < 6; attempt++) {
+      if (attempt) await new Promise((r) => setTimeout(r, 250 * attempt));
+      try {
+        res = await fetch(this.base + TOKEN_PATH, { method: "POST", headers: { Accept: "*/*", Authorization: `ApiKey ${this.env.GARMIN_API_KEY}` } });
+      } catch (e) {
+        if (attempt === 5) throw e;
+        continue;
+      }
+      if (res.status < 500) break;
+    }
     if (!res.ok) {
-      throw new GarminError(res.status, `Token exchange failed (${res.status}). Is the Garmin API key valid and not expired?`);
+      throw new GarminError(res.status, `Token exchange failed (${res.status}). ${res.status < 500 ? "Is the Garmin API key valid and not expired?" : "Garmin or Cloudflare error, try again."}`);
     }
     const token = (await res.text()).trim();
     cached = { token, exp: jwtExp(token), keyHash };
+    if (this.env.STATE) {
+      const ttl = Math.floor(cached.exp - now - REFRESH_WINDOW_S);
+      if (ttl >= 60) await this.env.STATE.put("garmin:token", JSON.stringify(cached), { expirationTtl: ttl }).catch(() => {});
+    }
     return token;
   }
 
   private async request(path: string, params?: Record<string, string | number | boolean | undefined>, accept = "application/json"): Promise<Response> {
     const url = new URL(this.base + path);
     for (const [k, v] of Object.entries(params || {})) if (v !== undefined && v !== "") url.searchParams.set(k, String(v));
-    for (let attempt = 0; attempt < 2; attempt++) {
-      const res = await fetch(url, { headers: { Accept: accept, Authorization: `Bearer ${await this.token(attempt > 0)}` } });
-      if (res.status === 401 && attempt === 0) continue; // token revoked early: retry once with a fresh one
+    let fresh = false; // 401: token revoked early, retry once with a fresh one
+    for (let attempt = 0; attempt < 4; attempt++) {
+      if (attempt) await new Promise((r) => setTimeout(r, 200 * attempt));
+      let res: Response;
+      try {
+        res = await fetch(url, { headers: { Accept: accept, Authorization: `Bearer ${await this.token(fresh)}` } });
+      } catch (e) {
+        if (attempt === 3) throw e;
+        continue;
+      }
+      if (res.status === 401 && !fresh) { fresh = true; continue; }
+      if (res.status >= 500 && attempt < 3) continue; // Cloudflare 526 in front of Garmin clears on retry
       if (!res.ok) {
         const body = (await res.text()).slice(0, 300);
         throw new GarminError(res.status, `Garmin GET ${path} failed (${res.status}): ${body}`);
@@ -102,6 +140,7 @@ export class Garmin {
   dailySummaries(s: string, e: string) { return this.get("/usersummary-service/v2/dailysummaries", { startDate: s, endDate: e }); }
   stress(s: string, e: string) { return this.get(`/usersummary-service/stats/stress/daily/${s}/${e}`); }
   dailyHeartRate(date: string) { return this.get("/wellness-service/wellness/dailyHeartRate", { date }); }
+  fitnessAge(date: string) { return this.get(`/fitnessage-service/fitnessage/v2/${date}`); }
   hrZones() { return this.get("/biometric-service/heartRateZones/v2"); }
   profile() { return this.get("/userprofile-service/userprofile/settings"); }
   weight(s: string, e: string) { return this.get(`/weight-service/weight/range/${s}/${e}`, { includeAll: "true" }); }
@@ -111,5 +150,5 @@ export class Garmin {
 export const RAW_ALLOWED_PREFIXES = [
   "/activitylist-service/", "/activity-service/", "/sleep-service/", "/hrv-service/", "/wellness-service/",
   "/usersummary-service/", "/biometric-service/", "/userprofile-service/", "/fitnessage-service/",
-  "/weight-service/", "/wellnessactivity-service/", "/goal-service/", "/nutrition-service/",
+  "/weight-service/", "/metrics-service/", "/wellnessactivity-service/", "/goal-service/", "/nutrition-service/",
 ];

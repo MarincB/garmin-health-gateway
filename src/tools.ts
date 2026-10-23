@@ -7,6 +7,7 @@ import { analyzeFit, extractFit, pace } from "./fit";
 // coach.ts imports helpers back from this file. Safe because they are function declarations
 // and nothing but tools.ts or index.ts imports coach.ts first.
 import { COACH_TOOLS } from "./coach";
+import { garminToday } from "./dashboard";
 import { addDays, daysBetween, localDate, mondayOf, pick, r1, trim, windows } from "./util";
 
 export interface Ctx { env: Env; g: Garmin; tz: string }
@@ -16,6 +17,7 @@ export interface Tool {
   name: string;
   description: string;
   shape: z.ZodRawShape;
+  ui?: string; // ui:// resource this tool renders into (MCP Apps); the tool still returns plain data
   run: (ctx: Ctx, args: any) => Promise<unknown>;
 }
 
@@ -197,6 +199,19 @@ export const TOOLS: Tool[] = [
     description: "Daily trend over a date range: HRV, sleep, daily summaries (resting HR, steps, stress), Body Battery. Default: last 14 days.",
     shape: { start_date: DATE.optional(), end_date: DATE.optional() },
     run: wellnessTrend,
+  },
+  {
+    name: "garmin_today",
+    description: "Today at a glance in Garmin's own terms: Sleep Score, Body Battery, Stress, HRV Status, Resting Heart Rate, SpO2, Respiration, Steps, Fitness Age, 7-day trend and today's planned session. Shows as a dashboard widget in clients that support it.",
+    shape: { date: DATE.optional() },
+    ui: "ui://garmin/today",
+    run: garminToday,
+  },
+  {
+    name: "fitness_age",
+    description: "Garmin Fitness Age for a date (default today), with the factors Garmin uses, e.g. VO2 max, resting HR, activity, body composition.",
+    shape: { date: DATE.optional() },
+    run: async (ctx, a) => trim(await ctx.g.fitnessAge(a.date ?? localDate(ctx.tz))),
   },
   {
     name: "profile_and_zones",

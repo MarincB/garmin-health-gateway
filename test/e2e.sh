@@ -14,7 +14,7 @@ cleanup() {
 trap 'cleanup; rm -f .dev.vars .wrangler-test.toml' EXIT
 
 # Same config as production plus a local KV binding for the goal coach.
-{ cat wrangler.toml; printf '\n[[kv_namespaces]]\nbinding = "STATE"\nid = "test-state"\n'; } > .wrangler-test.toml
+{ sed '/^\[\[kv_namespaces\]\]/,$d' wrangler.toml; printf '\n[[kv_namespaces]]\nbinding = "STATE"\nid = "test-state"\n'; } > .wrangler-test.toml
 
 start() { # $1 = ENABLE_FIT_ANALYSIS
   pkill -f "workerd-linux" 2>/dev/null || true
@@ -50,7 +50,7 @@ check "REST without secret -> 404" "404" "$(code $B/api/today)"
 
 echo "MCP"
 check "initialize" '"serverInfo":{"name":"garmin-health-gateway"' "$(rpc '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"t","version":"1"}}}')"
-check "tools/list has 17 tools" "17" "$(rpc '{"jsonrpc":"2.0","id":2,"method":"tools/list"}' | python3 -c 'import sys,json; print(len(json.load(sys.stdin)["result"]["tools"]))')"
+check "tools/list has 19 tools" "19" "$(rpc '{"jsonrpc":"2.0","id":2,"method":"tools/list"}' | python3 -c 'import sys,json; print(len(json.load(sys.stdin)["result"]["tools"]))')"
 R=$(tool analyze_activity '{}')
 check "analyze_activity FIT mode" '\"mode\":\"fit\"' "$R"
 check "splits computed" '\"split\":\"10\"' "$R"
@@ -59,6 +59,7 @@ check "HR zones from config" '\"zone\":5' "$R"
 check "list_activities compact" '\"avg_pace\":\"5:00/km\"' "$(tool list_activities '{"limit":2}')"
 check "training_load ramp" 'ramp_pct' "$(tool training_load '{"weeks":4}')"
 check "daily_wellness trims series" 'samples omitted' "$(tool daily_wellness '{"date":"2026-10-22"}')"
+check "fitness_age route" 'fitnessage/v2/2026-10-22' "$(tool fitness_age '{"date":"2026-10-22"}')"
 check "raw path allowlist" 'Path not allowed' "$(tool garmin_raw_get '{"path":"/download-service/files/activity/1"}')"
 check "bad args rejected" '"isError":true' "$(tool daily_wellness '{"date":"yesterday"}')"
 
@@ -109,6 +110,13 @@ R=$(tool athlete_baseline '{"weeks":6}')
 check "athlete_baseline longest run" 'longest_run\":{\"km\":15' "$R"
 check "athlete_baseline weekly km" 'weekly_km' "$R"
 check "athlete_baseline best efforts" '10k' "$R"
+check "garmin_today declares its widget" 'ui://garmin/today' "$(rpc '{"jsonrpc":"2.0","id":8,"method":"tools/list"}')"
+R=$(rpc '{"jsonrpc":"2.0","id":9,"method":"resources/read","params":{"uri":"ui://garmin/today"}}')
+check "widget resource has the MCP Apps mime type" 'text/html;profile=mcp-app' "$R"
+check "widget resource carries the page" 'ui/initialize' "$R"
+R=$(tool garmin_today '{}')
+check "garmin_today returns structuredContent" 'structuredContent' "$R"
+check "garmin_today says what Garmin does not expose" 'Training Readiness' "$R"
 echo "MCP prompts"
 check "prompts/list" 'plan_goal' "$(rpc '{"jsonrpc":"2.0","id":4,"method":"prompts/list"}')"
 check "prompts/get plan_goal" 'athlete_baseline' "$(rpc '{"jsonrpc":"2.0","id":5,"method":"prompts/get","params":{"name":"plan_goal","arguments":{"goal":"half marathon"}}}')"
@@ -124,7 +132,7 @@ check "invalid args -> 400" "400" "$(code "$B/api/$SECRET/today?date=nope")"
 check "unknown tool -> 404" "404" "$(code "$B/api/$SECRET/nope")"
 
 echo "Token caching"
-check "one token exchange per isolate" "token_exchanges=1" "$(curl -s http://127.0.0.1:8799/__calls | python3 -c 'import sys,json; c=json.load(sys.stdin); print("token_exchanges=%d" % sum("token" in x for x in c))')"
+check "token exchange retried once after 526, then cached" "token_exchanges=2" "$(curl -s http://127.0.0.1:8799/__calls | python3 -c 'import sys,json; c=json.load(sys.stdin); print("token_exchanges=%d" % sum("token" in x for x in c))')"
 
 echo "Free-tier mode (FIT analysis off)"
 start false
